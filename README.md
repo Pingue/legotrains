@@ -1,6 +1,6 @@
 # 🚂 LEGO Train Control Web App
 
-A kid-friendly web interface for controlling LEGO Powered Up trains via Bluetooth. Control unlimited trains with an intuitive touchscreen-friendly interface.
+A shamelessly vibe-coded kid-friendly web interface for controlling LEGO Powered Up trains via Bluetooth. Control unlimited trains with an intuitive touchscreen-friendly interface.
 
 ![Multi Train Control](https://img.shields.io/badge/Trains-Unlimited-green) ![Python](https://img.shields.io/badge/Python-3.9+-blue) ![Platform](https://img.shields.io/badge/Platform-macOS-lightgrey)
 
