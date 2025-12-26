@@ -15,11 +15,9 @@ app = Flask(__name__)
 LEGO_CHARACTERISTIC_UUID = "00001624-1212-efde-1623-785feabcd123"
 PORT = 0x00  # Port A
 
-# Global state - support for 2 trains
-trains = {
-    'train1': {'client': None, 'device': None, 'speed': 0, 'name': 'Train 1'},
-    'train2': {'client': None, 'device': None, 'speed': 0, 'name': 'Train 2'}
-}
+# Global state - support for unlimited trains
+trains = {}  # Dynamic dict: {address: {'client': ..., 'device': ..., 'speed': ..., 'name': ...}}
+train_counter = 0
 background_loop = None
 background_thread = None
 
@@ -58,67 +56,67 @@ async def find_trains():
     
     return found_trains
 
-async def connect_to_train(train_id):
-    """Connect to a specific LEGO train hub."""
-    global trains
+async def connect_to_train(address):
+    """Connect to a specific LEGO train hub by address."""
+    global trains, train_counter
     
-    train = trains[train_id]
+    # Check if already connected
+    if address in trains and trains[address]['client'] and trains[address]['client'].is_connected:
+        return address
     
-    # If already connected, return True
-    if train['client'] and train['client'].is_connected:
-        return True
-    
-    # Find all available trains
-    found_trains = await find_trains()
-    
-    if not found_trains:
-        return False
-    
-    # Try to assign trains based on what's available
-    # If this train doesn't have a device yet, assign the next available one
-    if train['device'] is None:
-        # Find a device that's not already assigned to another train
-        assigned_devices = [trains[tid]['device'] for tid in trains if trains[tid]['device'] is not None]
-        for device in found_trains:
-            if device not in assigned_devices:
-                train['device'] = device
-                train['name'] = device.name
-                break
-    
-    if train['device'] is None:
-        return False
+    # Create new train entry if needed
+    if address not in trains:
+        train_counter += 1
+        trains[address] = {
+            'client': None,
+            'device': None,
+            'speed': 0,
+            'name': f'Train {train_counter}',
+            'last_command': None
+        }
     
     # Connect to the device
-    train['client'] = BleakClient(train['device'].address)
-    await train['client'].connect()
-    return train['client'].is_connected
+    trains[address]['client'] = BleakClient(address)
+    await trains[address]['client'].connect()
+    
+    return address if trains[address]['client'].is_connected else None
 
-async def connect_all_trains():
-    """Try to connect to all available trains."""
+async def scan_and_connect_trains():
+    """Scan for and connect to all available LEGO trains."""
     found_trains = await find_trains()
     
     if not found_trains:
         return 0
     
-    # Assign devices to train slots
-    for i, device in enumerate(found_trains[:2]):  # Only take first 2
-        train_id = f'train{i+1}'
-        trains[train_id]['device'] = device
-        trains[train_id]['name'] = device.name
-        trains[train_id]['client'] = BleakClient(device.address)
-        await trains[train_id]['client'].connect()
+    connected_count = 0
+    for device in found_trains:
+        # Skip if already connected
+        if device.address in trains and trains[device.address]['client'] and trains[device.address]['client'].is_connected:
+            continue
+        
+        try:
+            train_id = await connect_to_train(device.address)
+            if train_id:
+                trains[train_id]['device'] = device
+                trains[train_id]['name'] = device.name or trains[train_id]['name']
+                connected_count += 1
+        except Exception as e:
+            print(f"Failed to connect to {device.name}: {e}")
+            continue
     
-    return len([t for t in trains.values() if t['client'] and t['client'].is_connected])
+    return connected_count
 
 async def set_train_speed(train_id, speed):
     """Set the train speed for a specific train."""
     global trains
     
+    if train_id not in trains:
+        raise Exception(f"Train {train_id} not found")
+    
     train = trains[train_id]
     
     if not train['client'] or not train['client'].is_connected:
-        if not await connect_to_train(train_id):
-            raise Exception(f"Not connected to {train_id}")
+        raise Exception(f"Not connected to train {train_id}")
     
     command = create_motor_command(PORT, speed)
     await train['client'].write_gatt_char(LEGO_CHARACTERISTIC_UUID, command)
@@ -131,11 +129,50 @@ async def get_train_info(train_id):
     """Get detailed information about a train."""
     global trains
     
+    if train_id not in trains:
+        return None
+    
     train = trains[train_id]
     
     if not train['client'] or not train['client'].is_connected:
         return None
     
+    # Initialize battery tracking if not present
+    if 'battery_level' not in train:
+        train['battery_level'] = None
+        train['battery_raw'] = None
+    
+    # Define notification handler that updates train state
+    def notification_handler(sender, data):
+        # Battery level response format: [0x06, 0x00, 0x01, 0x06, 0x06, battery_percent]
+        if len(data) >= 6 and data[0] == 0x06 and data[3] == 0x06:
+            train['battery_level'] = data[5]
+            train['battery_raw'] = data.hex()
+            print(f"Battery for {train['name']}: {data.hex()} - Level: {data[5]}%")
+    
+    try:
+        # Try to start notifications, ignore if already started
+        try:
+            await train['client'].start_notify(LEGO_CHARACTERISTIC_UUID, notification_handler)
+            await asyncio.sleep(0.1)  # Let notifications settle
+        except Exception as notify_err:
+            # Ignore "already started" errors
+            if "already started" not in str(notify_err).lower():
+                raise
+        
+        # Request hub properties - battery level (0x06)
+        hub_info_request = bytes([0x05, 0x00, 0x01, 0x06, 0x02])
+        await train['client'].write_gatt_char(LEGO_CHARACTERISTIC_UUID, hub_info_request)
+        
+        # Wait longer for response
+        await asyncio.sleep(1.0)
+            
+    except Exception as e:
+        # Don't show "already started" as an error
+        if "already started" not in str(e).lower():
+            train['battery_error'] = str(e)
+    
+    # Build info dict
     info = {
         'name': train['name'],
         'speed': train['speed'],
@@ -144,15 +181,14 @@ async def get_train_info(train_id):
         'last_command': train.get('last_command', 'None'),
     }
     
-    # Try to read battery level
-    try:
-        # Request hub properties - battery voltage
-        hub_info_request = bytes([0x05, 0x00, 0x01, 0x06, 0x02])
-        await train['client'].write_gatt_char(LEGO_CHARACTERISTIC_UUID, hub_info_request)
-        await asyncio.sleep(0.5)
-        info['battery_request_sent'] = True
-    except Exception as e:
-        info['battery_error'] = str(e)
+    if train['battery_level'] is not None:
+        info['battery_level'] = f"{train['battery_level']}%"
+        info['battery_raw'] = train['battery_raw']
+    else:
+        info['battery_level'] = 'No response'
+    
+    if 'battery_error' in train:
+        info['battery_error'] = train['battery_error']
     
     return info
 
@@ -183,15 +219,14 @@ def status():
 def connect():
     """Connect to all available trains."""
     try:
-        count = run_coroutine_threadsafe(connect_all_trains())
+        count = run_coroutine_threadsafe(scan_and_connect_trains())
         
-        if count > 0:
-            connected_names = [t['name'] for t in trains.values() if t['client'] and t['client'].is_connected]
+        if count > 0 or len(trains) > 0:
+            total_connected = sum(1 for t in trains.values() if t['client'] and t['client'].is_connected)
             return jsonify({
                 'status': 'success', 
-                'message': f'Connected to {count} train(s)',
-                'trains': connected_names,
-                'count': count
+                'message': f'Connected to {total_connected} train(s)',
+                'count': total_connected
             })
         else:
             return jsonify({'status': 'error', 'message': 'No trains found'}), 404
@@ -201,37 +236,15 @@ def connect():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/scan', methods=['POST'])
-def scan_and_connect():
-    """Scan for new trains and connect them."""
+def scan_more():
+    """Scan for additional trains and connect them."""
     try:
-        async def scan_for_new():
-            found_trains = await find_trains()
-            
-            # Find which trains are already connected
-            assigned_devices = [trains[tid]['device'] for tid in trains if trains[tid]['device'] is not None]
-            
-            # Connect to any new trains
-            new_count = 0
-            for device in found_trains:
-                if device not in assigned_devices:
-                    # Find an empty train slot
-                    for train_id in trains:
-                        if trains[train_id]['device'] is None:
-                            trains[train_id]['device'] = device
-                            trains[train_id]['name'] = device.name
-                            trains[train_id]['client'] = BleakClient(device.address)
-                            await trains[train_id]['client'].connect()
-                            new_count += 1
-                            break
-            
-            return new_count
-        
-        new_count = run_coroutine_threadsafe(scan_for_new())
-        total_connected = len([t for t in trains.values() if t['client'] and t['client'].is_connected])
+        new_count = run_coroutine_threadsafe(scan_and_connect_trains())
+        total_connected = sum(1 for t in trains.values() if t['client'] and t['client'].is_connected)
         
         return jsonify({
             'status': 'success',
-            'message': f'Found {new_count} new train(s)',
+            'new_count': new_count,
             'total_connected': total_connected
         })
     except Exception as e:
@@ -310,7 +323,18 @@ def stop():
 
 @app.route('/api/stop/all', methods=['POST'])
 def stop_all():
-    ""
+    """Stop all connected trains."""
+    try:
+        async def stop_all_trains():
+            for train_id, train in trains.items():
+                if train['client'] and train['client'].is_connected:
+                    await set_train_speed(train_id, 0)
+        
+        run_coroutine_threadsafe(stop_all_trains())
+        
+        return jsonify({'status': 'success', 'message': 'All trains stopped'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/debug/<train_id>', methods=['GET'])
 def get_debug_info(train_id):

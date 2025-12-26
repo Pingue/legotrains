@@ -94,7 +94,7 @@
 
         .trains-container {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
             gap: 20px;
             margin-bottom: 20px;
         }
@@ -406,17 +406,29 @@
         }
 
         .debug-btn {
-            width: 100%;
-            padding: 15px;
-            font-size: 1.2em;
-            font-weight: bold;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            padding: 0;
+            font-size: 1.5em;
             border: 2px solid #667eea;
-            border-radius: 15px;
+            border-radius: 50%;
             background: white;
             color: #667eea;
             cursor: pointer;
-            margin-bottom: 15px;
             transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .debug-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
         }
 
         .debug-btn.active {
@@ -425,20 +437,30 @@
         }
 
         .debug-panel {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            width: 400px;
+            max-width: calc(100vw - 40px);
             background: #1e1e1e;
             color: #d4d4d4;
             padding: 20px;
             border-radius: 15px;
-            margin-bottom: 20px;
             font-family: 'Courier New', monospace;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s ease-out;
+            max-height: 70vh;
+            overflow-y: auto;
         }
 
         .debug-panel.show {
-            max-height: 500px;
-            overflow-y: auto;
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
         }
 
         .debug-panel h3 {
@@ -466,7 +488,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>🚂🚂 Dual Train Control</h1>
+        <h1>🚂🚂 Multi Train Control</h1>
         
         <div id="message" class="message"></div>
         
@@ -474,13 +496,15 @@
             Not Connected
         </div>
         
-        <button id="debugBtn" class="debug-btn" onclick="toggleDebug()">
-            🔍 Show Debug Info
+        <button id="debugBtn" class="debug-btn" onclick="toggleDebug()" title="Toggle Debug Info">
+            🔍
         </button>
         
         <div id="debugPanel" class="debug-panel">
-            <h3>🔧 Debug Information</h3>
-            <div id="debugContent">No debug info yet. Control the trains to see data.</div>
+            <div id="debugContent">
+                <h3>🔧 Debug Information</h3>
+                <div>No debug info yet. Control the trains to see data.</div>
+            </div>
         </div>
         
         <button id="connectBtn" class="connect-btn">
@@ -488,64 +512,12 @@
         </button>
         
         <div id="controls" class="controls">
-            <button id="scanBtn" class="connect-btn" style="margin-bottom: 20px; background: #51cf66; display: none;">
+            <button id="scanBtn" class="connect-btn" style="margin-bottom: 20px; background: #51cf66;">
                 🔍 Scan for More Trains
             </button>
             
-            <div class="trains-container">
-                <!-- Train 1 -->
-                <div class="train-control">
-                    <div class="train-header">
-                        <span id="train1-name">🚂 Train 1</span>
-                        <button class="rename-btn" onclick="renameTrain('train1')">✏️ Rename</button>
-                    </div>
-                    <div id="train1-status" class="train-status offline">Offline</div>
-                    <div class="speed-display">
-                        <span id="train1-speed">0</span>%
-                    </div>
-                    <div class="direction-label" id="train1-direction">⛔ Stopped</div>
-                    <div class="slider-wrapper">
-                        <input type="range" min="-100" max="100" value="0" class="speed-slider" id="train1-slider">
-                    </div>
-                    <div class="train-buttons">
-                        <button class="control-btn forward-btn" onclick="setSpeed('train1', 50)">
-                            ⬆️ Forward
-                        </button>
-                        <button class="control-btn backward-btn" onclick="setSpeed('train1', -50)">
-                            ⬇️ Back
-                        </button>
-                        <button class="control-btn stop-btn" onclick="stopTrain('train1')">
-                            ⛔ STOP
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Train 2 -->
-                <div class="train-control">
-                    <div class="train-header">
-                        <span id="train2-name">🚂 Train 2</span>
-                        <button class="rename-btn" onclick="renameTrain('train2')">✏️ Rename</button>
-                    </div>
-                    <div id="train2-status" class="train-status offline">Offline</div>
-                    <div class="speed-display">
-                        <span id="train2-speed">0</span>%
-                    </div>
-                    <div class="direction-label" id="train2-direction">⛔ Stopped</div>
-                    <div class="slider-wrapper">
-                        <input type="range" min="-100" max="100" value="0" class="speed-slider" id="train2-slider">
-                    </div>
-                    <div class="train-buttons">
-                        <button class="control-btn forward-btn" onclick="setSpeed('train2', 50)">
-                            ⬆️ Forward
-                        </button>
-                        <button class="control-btn backward-btn" onclick="setSpeed('train2', -50)">
-                            ⬇️ Back
-                        </button>
-                        <button class="control-btn stop-btn" onclick="stopTrain('train2')">
-                            ⛔ STOP
-                        </button>
-                    </div>
-                </div>
+            <div id="trains-container" class="trains-container">
+                <!-- Train controls will be dynamically added here -->
             </div>
 
             <!-- Global Controls -->
@@ -567,12 +539,86 @@
     </div>
 
     <script>
-        let trainStates = {
-            train1: { connected: false, speed: 0, name: 'Train 1' },
-            train2: { connected: false, speed: 0, name: 'Train 2' }
-        };
+        let trainStates = {};  // Dynamic train states
 
         let debugMode = false;
+
+        // Create HTML for a new train control panel
+        function createTrainPanel(trainId, trainName) {
+            return `
+                <div class="train-control" id="train-panel-${trainId}">
+                    <div class="train-header">
+                        <span id="${trainId}-name">🚂 ${trainName}</span>
+                        <button class="rename-btn" onclick="renameTrain('${trainId}')">✏️ Rename</button>
+                    </div>
+                    <div id="${trainId}-status" class="train-status online">✅ ${trainName}</div>
+                    <div class="speed-display">
+                        <span id="${trainId}-speed">0</span>%
+                    </div>
+                    <div class="direction-label" id="${trainId}-direction">⛔ Stopped</div>
+                    <div class="slider-wrapper">
+                        <input type="range" min="-100" max="100" value="0" class="speed-slider" id="${trainId}-slider">
+                    </div>
+                    <div class="train-buttons">
+                        <button class="control-btn forward-btn" onclick="setSpeed('${trainId}', 50)">
+                            ⬆️ Forward
+                        </button>
+                        <button class="control-btn backward-btn" onclick="setSpeed('${trainId}', -50)">
+                            ⬇️ Back
+                        </button>
+                        <button class="control-btn stop-btn" onclick="stopTrain('${trainId}')">
+                            ⛔ STOP
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Add a train to the UI
+        function addTrainToUI(trainId, trainName) {
+            // Add to train states
+            trainStates[trainId] = { connected: true, speed: 0, name: trainName };
+            
+            // Create and add panel
+            const container = document.getElementById('trains-container');
+            const panel = document.createElement('div');
+            panel.innerHTML = createTrainPanel(trainId, trainName);
+            container.appendChild(panel.firstElementChild);
+            
+            // Setup slider event listeners
+            const slider = document.getElementById(`${trainId}-slider`);
+            slider.addEventListener('input', (e) => {
+                const speed = parseInt(e.target.value);
+                document.getElementById(`${trainId}-speed`).textContent = speed;
+            });
+            slider.addEventListener('change', (e) => {
+                const speed = parseInt(e.target.value);
+                setSpeed(trainId, speed);
+            });
+        }
+
+        // Update existing train or add new one
+        function updateOrAddTrain(trainId, train) {
+            if (!document.getElementById(`train-panel-${trainId}`)) {
+                addTrainToUI(trainId, train.name);
+            } else {
+                trainStates[trainId].connected = train.connected;
+                trainStates[trainId].name = train.name;
+                
+                const statusEl = document.getElementById(`${trainId}-status`);
+                const nameEl = document.getElementById(`${trainId}-name`);
+                
+                if (train.connected) {
+                    statusEl.textContent = `✅ ${train.name}`;
+                    statusEl.className = 'train-status online';
+                    nameEl.textContent = `🚂 ${train.name}`;
+                    updateTrainUI(trainId, train.speed);
+                } else {
+                    statusEl.textContent = 'Offline';
+                    statusEl.className = 'train-status offline';
+                }
+            }
+        }
 
         // Toggle debug panel
         function toggleDebug() {
@@ -583,12 +629,10 @@
             if (debugMode) {
                 panel.className = 'debug-panel show';
                 btn.className = 'debug-btn active';
-                btn.textContent = '🔍 Hide Debug Info';
                 updateDebugInfo();
             } else {
                 panel.className = 'debug-panel';
                 btn.className = 'debug-btn';
-                btn.textContent = '🔍 Show Debug Info';
             }
         }
 
@@ -596,12 +640,14 @@
         async function updateDebugInfo() {
             if (!debugMode) return;
             
-            let debugHtml = '<h3>🔧 Debug Information</h3>';
+            let debugHtml = '';
+            let hasConnectedTrains = false;
             
             for (let trainId in trainStates) {
                 if (trainStates[trainId].connected) {
+                    hasConnectedTrains = true;
                     try {
-                        const response = await fetch(`/api/debug/${trainId}`);
+                        const response = await fetch(`/api/debug/${encodeURIComponent(trainId)}`);
                         const data = await response.json();
                         
                         if (data.status === 'success') {
@@ -609,25 +655,26 @@
                             debugHtml += `
                                 <div class="debug-item">
                                     <div><span class="debug-label">${info.name}:</span></div>
-                                    <div>Address: ${info.address || 'N/A'}</div>
+                                    <div>Address: ${info.address || trainId}</div>
                                     <div>Current Speed: ${info.speed}%</div>
                                     <div>Last Command: ${info.last_command || 'None'}</div>
-                                    ${info.battery_request_sent ? '<div>Battery info requested ✓</div>' : ''}
+                                    ${info.battery_level ? '<div>🔋 Battery: ' + info.battery_level + '</div>' : ''}
+                                    ${info.battery_raw ? '<div style="font-size: 0.85em; color: #888;">Raw: ' + info.battery_raw + '</div>' : ''}
                                     ${info.battery_error ? '<div style="color: #ff6b6b;">Battery Error: ' + info.battery_error + '</div>' : ''}
                                 </div>
                             `;
                         }
                     } catch (error) {
-                        debugHtml += `<div class="debug-item" style="color: #ff6b6b;">Error getting info for ${trainId}: ${error.message}</div>`;
+                        debugHtml += `<div class="debug-item" style="color: #ff6b6b;">Error getting info for ${trainStates[trainId].name}: ${error.message}</div>`;
                     }
                 }
             }
             
-            if (!trainStates.train1.connected && !trainStates.train2.connected) {
-                debugHtml += '<div>No trains connected</div>';
+            if (!hasConnectedTrains) {
+                debugHtml = '<div>No trains connected</div>';
             }
             
-            document.getElementById('debugContent').innerHTML = debugHtml;
+            document.getElementById('debugContent').innerHTML = '<h3>🔧 Debug Information</h3>' + debugHtml;
         }
 
         // Update UI for a specific train
@@ -680,11 +727,6 @@
                     document.getElementById('controls').className = 'controls active';
                     btn.style.display = 'none';
                     
-                    // Show scan button if only 1 train connected
-                    if (data.count === 1) {
-                        document.getElementById('scanBtn').style.display = 'block';
-                    }
-                    
                     showMessage(`Found ${data.count} train(s)! 🎉`, 'success');
                     
                     // Update status after a moment
@@ -717,15 +759,9 @@
                     // Update status
                     setTimeout(checkStatus, 500);
                     
-                    // Hide scan button if we now have 2 trains
-                    if (data.total_connected >= 2) {
-                        btn.style.display = 'none';
-                    } else {
-                        btn.textContent = '🔍 Scan for More Trains';
-                        btn.disabled = false;
-                    }
-                    
                     document.getElementById('status').textContent = `✅ Connected: ${data.total_connected} train(s)`;
+                    btn.textContent = '🔍 Scan for More Trains';
+                    btn.disabled = false;
                 } else {
                     showMessage(data.message, 'error');
                     btn.textContent = '🔍 Scan for More Trains';
@@ -840,21 +876,6 @@
             }
         }
 
-        // Slider input handlers for each train
-        ['train1', 'train2'].forEach(trainId => {
-            const slider = document.getElementById(`${trainId}-slider`);
-            
-            slider.addEventListener('input', (e) => {
-                const speed = parseInt(e.target.value);
-                document.getElementById(`${trainId}-speed`).textContent = speed;
-            });
-            
-            slider.addEventListener('change', (e) => {
-                const speed = parseInt(e.target.value);
-                setSpeed(trainId, speed);
-            });
-        });
-
         // Check status on load
         async function checkStatus() {
             try {
@@ -867,32 +888,10 @@
                     document.getElementById('controls').className = 'controls active';
                     document.getElementById('connectBtn').style.display = 'none';
                     
-                    // Show scan button if only 1 train connected
-                    if (data.connected_count === 1) {
-                        document.getElementById('scanBtn').style.display = 'block';
-                    } else {
-                        document.getElementById('scanBtn').style.display = 'none';
-                    }
-                    
                     // Update each train's status
                     for (let trainId in data.trains) {
                         const train = data.trains[trainId];
-                        trainStates[trainId].connected = train.connected;
-                        trainStates[trainId].name = train.name;
-                        
-                        const statusEl = document.getElementById(`${trainId}-status`);
-                        const nameEl = document.getElementById(`${trainId}-name`);
-                        
-                        if (train.connected) {
-                            statusEl.textContent = `✅ ${train.name}`;
-                            statusEl.className = 'train-status online';
-                            nameEl.textContent = `🚂 ${train.name}`;
-                            updateTrainUI(trainId, train.speed);
-                        } else {
-                            statusEl.textContent = 'Offline';
-                            statusEl.className = 'train-status offline';
-                            nameEl.textContent = `🚂 ${train.name}`;
-                        }
+                        updateOrAddTrain(trainId, train);
                     }
                 }
             } catch (error) {
@@ -900,7 +899,9 @@
             }
         }
 
+        // Auto-refresh status every 3 seconds
         checkStatus();
+        setInterval(checkStatus, 3000);
     </script>
 </body>
 </html>
